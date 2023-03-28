@@ -6,9 +6,9 @@ from discord.ext import commands
 from discord.utils import get
 import dotenv
 from dotenv import load_dotenv
-from quiz_db import add_quiz
 import redis
 import asyncio
+from quiz_mgr import QuizManager, load_quizzes_from_file
 
 LOCK_FILE = 'blaine.lock'
 
@@ -34,53 +34,55 @@ TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 # Establish a connection to the Redis server
 r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
+# Instantiate the QuizManager
+quiz_manager = QuizManager(r)
+
+# Load quizzes from the JSON file
+load_quizzes_from_file("quizzes.json", quiz_manager)
+
 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
 
 
-@bot.command(name='add_quiz', help='Adds a new quiz. Usage: !add_quiz <quiz_name>;<question>;<answer>|<question>;<answer>|...')
+@bot.command(name='add_quiz', help='Adds a new quiz. Usage: !add_quiz <quiz_name>;<question>;<answer>;<option1>;<option2>;<option3>|...')
 @commands.has_permissions(administrator=True)
 async def add_quiz_command(ctx, *, quiz_data: str):
-    # Split the input string into quiz_name and questions
     quiz_name, question_data = quiz_data.split(';', 1)
     question_data = question_data.split('|')
 
     # Parse the questions
-    questions = [tuple(q.split(';', 1)) for q in question_data]
+    questions = [tuple(q.split(';')) for q in question_data]
+    formatted_questions = [(q[0], q[1], q[2:]) for q in questions]
 
-    # Call the add_quiz function
-    add_quiz(quiz_name.strip(), questions)
+    # Call the add_quiz method from the QuizManager instance
+    quiz_manager.add_quiz(quiz_name.strip(), formatted_questions)
 
     await ctx.send(f'Quiz "{quiz_name.strip()}" added successfully.')
 
 
 @bot.command(name='start_quiz', help='Starts a quiz. Usage: !start_quiz <quiz_name>')
 async def start_quiz(ctx, quiz_name: str):
-    quiz_name = quiz_name.lower()
-
-    print(f"Searching for quiz: {quiz_name}")  # Debug print statement
-
-    if not r.sismember("quizzes", quiz_name):
-        all_quizzes = r.smembers("quizzes")
-        # Debug print statement
-        print(f"Available quizzes in Redis: {all_quizzes}")
+    if not quiz_manager.quiz_exists(quiz_name):
+        all_quizzes = quiz_manager.get_all_quizzes()
         await ctx.send("Quiz not found.")
         return
 
-    questions = r.hgetall(f"quiz:{quiz_name}:questions")
-    questions = list(questions.items())
+    questions = quiz_manager.get_quiz(quiz_name)
     random.shuffle(questions)
 
     correct = 0
 
-    for index, (question, answer) in enumerate(questions):
-        await ctx.send(f'Question {index+1}: {question}')
+    for index, (question, (answer, options)) in enumerate(questions):
+        options_text = '\n'.join(
+            [f"{i+1}. {option}" for i, option in enumerate(options)])
+        await ctx.send(f'Question {index+1}: {question}\n\n{options_text}')
+
         await asyncio.sleep(0.5)
         response = await bot.wait_for('message', check=lambda message: message.author == ctx.author, timeout=30)
-
-        if response.content.lower() == answer.lower():
+        # cast to int to compare the user's response to the correct answer's index.
+        if int(response.content) == options.index(answer.lower()) + 1:
             correct += 1
             await ctx.send("Correct!")
         else:

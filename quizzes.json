@@ -1,0 +1,24 @@
+{
+    "gen1": [
+        {
+            "question": "What type is Pikachu?",
+            "answer": "Electric",
+            "options": [
+                "Fire",
+                "Water",
+                "Electric",
+                "Grass"
+            ]
+        },
+        {
+            "question": "What is the first Pokémon in the Pokédex?",
+            "answer": "Bulbasaur",
+            "options": [
+                "Charmander",
+                "Squirtle",
+                "Bulbasaur",
+                "Pikachu"
+            ]
+        }
+    ]
+}
