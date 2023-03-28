@@ -93,20 +93,26 @@ async def start_quiz(ctx, quiz_name: str):
 async def award_role(ctx, correct, total_questions):
     percentage = correct / total_questions * 100
 
-    if percentage >= 80:
-        role_name = 'Pokémon Master'
-    elif percentage >= 50:
-        role_name = 'Pokémon Trainer'
+    try:
+        if percentage >= 80:
+            role_name = 'Pokémon Master'
+        elif percentage >= 50:
+            role_name = 'Pokémon Trainer'
+        else:
+            role_name = 'Beginner Trainer'
+
+    except Exception as error:
+        print("some error happened!", str(error))
+        exit()
+
     else:
-        role_name = 'Beginner Trainer'
+        role = get(ctx.guild.roles, name=role_name)
 
-    role = get(ctx.guild.roles, name=role_name)
+        if not role:
+            role = await ctx.guild.create_role(name=role_name)
 
-    if not role:
-        role = await ctx.guild.create_role(name=role_name)
-
-    await ctx.author.add_roles(role)
-    await ctx.send(f'You have been awarded the {role_name} role.')
+        await ctx.author.add_roles(role)
+        await ctx.send(f'You have been awarded the {role_name} role.')
 
 
 bot.run(TOKEN)
